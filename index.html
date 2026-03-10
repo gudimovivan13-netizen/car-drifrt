@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Drift Game</title>
+
+<style>
+
+body{
+margin:0;
+overflow:hidden;
+background:#111;
+font-family:Arial;
+color:white;
+}
+
+canvas{
+display:block;
+}
+
+#menu,#garage{
+position:absolute;
+width:100%;
+height:100%;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:#111;
+}
+
+button{
+padding:12px 30px;
+font-size:18px;
+margin:6px;
+border:none;
+border-radius:8px;
+cursor:pointer;
+}
+
+#ui{
+position:absolute;
+top:10px;
+left:10px;
+display:none;
+}
+
+#joystick{
+position:absolute;
+bottom:40px;
+left:40px;
+width:120px;
+height:120px;
+background:rgba(255,255,255,0.1);
+border-radius:50%;
+display:none;
+}
+
+#stick{
+position:absolute;
+width:50px;
+height:50px;
+background:white;
+border-radius:50%;
+left:35px;
+top:35px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+
+<h1>DRIFT GAME</h1>
+
+<button onclick="startGame()">START</button>
+<button onclick="openGarage()">GARAGE</button>
+
+</div>
+
+<div id="garage" style="display:none">
+
+<h2>Select Car</h2>
+<div id="cars"></div>
+
+<button onclick="closeGarage()">BACK</button>
+
+</div>
+
+<div id="ui">
+
+Level: <span id="level">1</span><br>
+Drift: <span id="score">0</span><br>
+Coins: <span id="coins">0</span>
+
+</div>
+
+<div id="joystick">
+<div id="stick"></div>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+
+const canvas=document.getElementById("game")
+const ctx=canvas.getContext("2d")
+
+canvas.width=window.innerWidth
+canvas.height=window.innerHeight
+
+let gameStarted=false
+let level=1
+let score=0
+let coins=0
+
+let joyX=0
+let joyY=0
+
+let smoke=[]
+
+let car={
+x:0,
+y:0,
+angle:0,
+speed:0
+}
+
+let cars=[
+{color:"red"},
+{color:"blue"},
+{color:"green"},
+{color:"yellow"},
+{color:"orange"},
+{color:"purple"},
+{color:"cyan"},
+{color:"white"},
+{color:"pink"},
+{color:"lime"}
+]
+
+let currentCar=0
+
+let track=[]
+let lapStarted=false
+let coinList=[]
+let walls=[]
+
+function createWalls(){
+
+walls=[
+
+{x:0,y:0,w:canvas.width,h:30},
+{x:0,y:0,w:30,h:canvas.height},
+
+{x:0,y:canvas.height-30,w:canvas.width,h:30},
+{x:canvas.width-30,y:0,w:30,h:canvas.height}
+
+]
+
+}
+
+function random(seed){
+let x=Math.sin(seed)*10000
+return x-Math.floor(x)
+}
+
+function generateTrack(level){
+
+track=[]
+
+let points=6+(level%4)
+
+let radius=250
+
+for(let i=0;i<points;i++){
+
+let angle=(Math.PI*2/points)*i
+let r=radius+(random(level*i)*200-100)
+
+let x=canvas.width/2+Math.cos(angle)*r
+let y=canvas.height/2+Math.sin(angle)*r
+
+track.push({x,y})
+
+}
+
+let start=track[0]
+let next=track[1]
+
+let dx=next.x-start.x
+let dy=next.y-start.y
+
+let len=Math.sqrt(dx*dx+dy*dy)
+
+dx/=len
+dy/=len
+
+car.x=start.x-dx*80
+car.y=start.y-dy*80
+car.angle=Math.atan2(dy,dx)
+
+lapStarted=false
+
+spawnCoins()
+
+}
+
+function spawnCoins(){
+
+coinList=[]
+
+for(let i=0;i<8;i++){
+
+coinList.push({
+
+x:Math.random()*canvas.width,
+y:Math.random()*canvas.height
+
+})
+
+}
+
+}
+
+function startGame(){
+
+document.getElementById("menu").style.display="none"
+document.getElementById("ui").style.display="block"
+document.getElementById("joystick").style.display="block"
+
+createWalls()
+generateTrack(level)
+
+gameStarted=true
+
+}
+
+function openGarage(){
+
+document.getElementById("menu").style.display="none"
+document.getElementById("garage").style.display="flex"
+
+}
+
+function closeGarage(){
+
+document.getElementById("garage").style.display="none"
+document.getElementById("menu").style.display="flex"
+
+}
+
+function drawCars(){
+
+let div=document.getElementById("cars")
+
+cars.forEach((c,i)=>{
+
+let b=document.createElement("button")
+b.innerText="Car "+(i+1)
+
+b.onclick=()=>{
+
+currentCar=i
+
+}
+
+div.appendChild(b)
+
+})
+
+}
+
+drawCars()
+
+function drawTrack(){
+
+ctx.strokeStyle="#888"
+ctx.lineWidth=40
+ctx.lineJoin="round"
+
+ctx.beginPath()
+
+ctx.moveTo(track[0].x,track[0].y)
+
+for(let p of track){
+ctx.lineTo(p.x,p.y)
+}
+
+ctx.closePath()
+ctx.stroke()
+
+}
+
+function drawWalls(){
+
+ctx.fillStyle="#444"
+
+walls.forEach(w=>{
+ctx.fillRect(w.x,w.y,w.w,w.h)
+})
+
+}
+
+function drawCar(){
+
+ctx.save()
+
+ctx.translate(car.x,car.y)
+ctx.rotate(car.angle)
+
+ctx.fillStyle=cars[currentCar].color
+ctx.fillRect(-20,-10,40,20)
+
+ctx.restore()
+
+}
+
+function update(){
+
+car.speed+=-joyY*0.18
+car.angle+=joyX*0.05
+
+car.speed*=0.97
+
+car.x+=Math.cos(car.angle)*car.speed
+car.y+=Math.sin(car.angle)*car.speed
+
+score+=Math.abs(joyX*car.speed)
+
+document.getElementById("score").innerText=Math.floor(score)
+
+if(Math.abs(joyX)>0.3 && Math.abs(car.speed)>1){
+
+smoke.push({
+x:car.x,
+y:car.y,
+life:20
+})
+
+}
+
+}
+
+function drawSmoke(){
+
+smoke.forEach((s,i)=>{
+
+ctx.globalAlpha=s.life/20
+ctx.fillStyle="gray"
+
+ctx.beginPath()
+ctx.arc(s.x,s.y,8,0,Math.PI*2)
+ctx.fill()
+
+s.life--
+
+if(s.life<=0) smoke.splice(i,1)
+
+})
+
+ctx.globalAlpha=1
+
+}
+
+function drawCoins(){
+
+ctx.fillStyle="gold"
+
+coinList.forEach((c,i)=>{
+
+ctx.beginPath()
+ctx.arc(c.x,c.y,8,0,Math.PI*2)
+ctx.fill()
+
+let dx=car.x-c.x
+let dy=car.y-c.y
+
+if(Math.sqrt(dx*dx+dy*dy)<20){
+
+coins++
+coinList.splice(i,1)
+
+document.getElementById("coins").innerText=coins
+
+}
+
+})
+
+}
+
+function collision(){
+
+walls.forEach(w=>{
+
+if(
+
+car.x>w.x &&
+car.x<w.x+w.w &&
+car.y>w.y &&
+car.y<w.y+w.h
+
+){
+
+car.speed*=-0.5
+
+}
+
+})
+
+}
+
+function checkFinish(){
+
+let start=track[0]
+
+let dx=car.x-start.x
+let dy=car.y-start.y
+
+let dist=Math.sqrt(dx*dx+dy*dy)
+
+if(dist>200) lapStarted=true
+
+if(dist<60 && lapStarted) nextLevel()
+
+}
+
+function nextLevel(){
+
+level++
+
+if(level>100) level=1
+
+document.getElementById("level").innerText=level
+
+generateTrack(level)
+
+}
+
+const joystick=document.getElementById("joystick")
+const stick=document.getElementById("stick")
+
+function moveStick(clientX,clientY){
+
+let rect=joystick.getBoundingClientRect()
+
+let x=clientX-rect.left-60
+let y=clientY-rect.top-60
+
+let dist=Math.sqrt(x*x+y*y)
+
+if(dist>50){
+
+x*=50/dist
+y*=50/dist
+
+}
+
+stick.style.left=(x+60-25)+"px"
+stick.style.top=(y+60-25)+"px"
+
+joyX=x/50
+joyY=y/50
+
+}
+
+joystick.addEventListener("touchmove",e=>{
+moveStick(e.touches[0].clientX,e.touches[0].clientY)
+})
+
+joystick.addEventListener("mousemove",e=>{
+if(e.buttons===1) moveStick(e.clientX,e.clientY)
+})
+
+document.addEventListener("mouseup",resetStick)
+joystick.addEventListener("touchend",resetStick)
+
+function resetStick(){
+
+stick.style.left="35px"
+stick.style.top="35px"
+
+joyX=0
+joyY=0
+
+}
+
+function gameLoop(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height)
+
+if(gameStarted){
+
+update()
+
+collision()
+
+drawTrack()
+drawWalls()
+drawSmoke()
+drawCoins()
+drawCar()
+
+checkFinish()
+
+}
+
+requestAnimationFrame(gameLoop)
+
+}
+
+gameLoop()
+
+</script>
+
+</body>
+</html>
